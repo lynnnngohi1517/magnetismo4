@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Laboratorio interactivo: Campo magnético</title>
+<style>
+:root{color-scheme:dark;--bg:#101827;--panel:#19263a;--text:#edf4ff;--muted:#b8c6d9;--cyan:#67d9ed}
+*{box-sizing:border-box}
+body{margin:0;padding:22px;font-family:Arial,Helvetica,sans-serif;background:linear-gradient(145deg,#101827,#172a40);color:var(--text)}
+main{max-width:950px;margin:auto}
+h1{font-size:clamp(1.5rem,4vw,2.2rem);margin:0 0 8px}
+.intro{color:var(--muted);margin:0 0 18px}
+.stage{background:#0b1728;border:1px solid #34465f;border-radius:16px;overflow:hidden}
+svg{display:block;width:100%;height:auto}
+#field path{fill:none;stroke:var(--cyan);stroke-width:2.1;opacity:.82}
+#field circle{fill:#e1fbff;filter:drop-shadow(0 0 4px var(--cyan))}
+.controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:14px 0}
+button{border:0;border-radius:9px;padding:12px 16px;font-size:15px;font-weight:bold;cursor:pointer;background:#2d8ca8;color:white}
+button.secondary{background:var(--panel);border:1px solid #40536b;color:var(--text)}
+label{display:flex;align-items:center;gap:10px;color:var(--muted);margin-left:auto}
+input{accent-color:var(--cyan);width:125px}
+.info{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.card{background:var(--panel);border:1px solid #34465f;border-radius:12px;padding:14px;color:var(--muted);line-height:1.45}
+.card strong{display:block;margin-bottom:5px}
+.north{color:#ff8589}.south{color:#80b4ff}
+.note{color:var(--muted);line-height:1.5;font-size:.95rem}
+#status{font-size:.85rem;color:var(--muted);min-height:1.2em}
+@media(max-width:560px){body{padding:13px}.info{grid-template-columns:1fr}label{margin-left:0;width:100%}input{flex:1}}
+</style>
+</head>
+<body>
+<main>
+  <h1>Laboratorio: Campo magnético de un imán</h1>
+  <p class="intro">Observa cómo las líneas del campo magnético rodean el imán y forman curvas cerradas.</p>
+  <div class="stage">
+    <svg viewBox="0 0 680 410" role="img" aria-label="Imán de barra con líneas curvas cerradas del campo magnético">
+      <defs>
+        <linearGradient id="bar" x1="0" x2="1">
+          <stop offset="0" stop-color="#e34d55"/><stop offset=".5" stop-color="#e34d55"/>
+          <stop offset=".5" stop-color="#397bd4"/><stop offset="1" stop-color="#397bd4"/>
+        </linearGradient>
+      </defs>
+      <text x="340" y="25" fill="#dce7f5" font-size="14" text-anchor="middle">Por fuera del imán: del polo norte al polo sur</text>
+      <g id="field"></g>
+      <rect x="210" y="177" width="260" height="58" rx="8" fill="url(#bar)" stroke="#fff" stroke-opacity=".55" stroke-width="1.5"/>
+      <path d="M340 178V234" stroke="#fff" stroke-opacity=".55" stroke-width="1.5"/>
+      <text x="275" y="214" text-anchor="middle" font-size="27" font-weight="bold" fill="white">N</text>
+      <text x="405" y="214" text-anchor="middle" font-size="27" font-weight="bold" fill="white">S</text>
+      <text x="340" y="263" fill="#dce7f5" font-size="12" text-anchor="middle">IMÁN DE BARRA</text>
+    </svg>
+  </div>
+  <div class="controls">
+    <button id="toggle">❚❚ Pausar movimiento</button>
+    <button id="reset" class="secondary">↺ Reiniciar</button>
+    <label>Velocidad <input id="speed" type="range" min=".3" max="3" step=".1" value="1"><span id="speedValue">1.0×</span></label>
+  </div>
+  <section class="info">
+    <div class="card"><strong class="north">Norte (N)</strong>Las líneas salen del polo norte por fuera del imán.</div>
+    <div class="card"><strong class="south">Sur (S)</strong>Las líneas entran por el polo sur por fuera del imán.</div>
+  </section>
+  <p class="note"><strong>Dato importante:</strong> las líneas del campo magnético siempre forman circuitos cerrados. Por fuera del imán van de norte a sur; dentro del imán regresan de sur a norte. Las flechas y los puntos en movimiento ayudan a visualizar el sentido del campo.</p>
+  <div id="status" aria-live="polite">Campo magnético en movimiento.</div>
+</main>
+<script>
+(() => {
+  const svgNS = "http://www.w3.org/2000/svg";
+  const group = document.getElementById("field");
+  const tracks = [];
+  const levels = [-1.35,-1.05,-.78,-.52,-.26,0,.26,.52,.78,1.05,1.35];
+
+  levels.forEach((v,i) => {
+    const a = Math.abs(v), h = 39 + a*76, w = 75 + a*65;
+    const top = 205-h, bottom = 205+h;
+    // Cada trayectoria representa el circuito exterior y el retorno interior del campo.
+    const d = `M210 205 C${210-w} ${top},${470+w} ${top},470 205 C${470+w} ${bottom},${210-w} ${bottom},210 205`;
+    const path = document.createElementNS(svgNS,"path");
+    path.setAttribute("d",d);
+    group.appendChild(path);
+    const dot = document.createElementNS(svgNS,"circle");
+    dot.setAttribute("r",i%2 ? 3 : 4);
+    group.appendChild(dot);
+    tracks.push({path,dot,phase:i*.57,direction:i%2 ? 1 : -1});
+  });
+
+  let running = true, time = 0, speed = 1, animation = 0;
+  const toggle = document.getElementById("toggle");
+  const status = document.getElementById("status");
+
+  function animate(){
+    if(!running) return;
+    time += .006*speed;
+    tracks.forEach(track => {
+      const length = track.path.getTotalLength();
+      const position = ((time*track.direction*length/5 + track.phase*length/6)%length + length)%length;
+      const point = track.path.getPointAtLength(position);
+      track.dot.setAttribute("cx",point.x);
+      track.dot.setAttribute("cy",point.y);
+    });
+    animation = requestAnimationFrame(animate);
+  }
+  function play(){
+    running = true;
+    toggle.textContent = "❚❚ Pausar movimiento";
+    status.textContent = "Campo magnético en movimiento.";
+    cancelAnimationFrame(animation);
+    animate();
+  }
+  function pause(){
+    running = false;
+    cancelAnimationFrame(animation);
+    toggle.textContent = "▶ Reanudar movimiento";
+    status.textContent = "Movimiento pausado. Las líneas permanecen visibles.";
+  }
+  toggle.addEventListener("click",() => running ? pause() : play());
+  document.getElementById("reset").addEventListener("click",() => {time=0;play();});
+  document.getElementById("speed").addEventListener("input",event => {
+    speed = Number(event.target.value);
+    document.getElementById("speedValue").textContent = speed.toFixed(1)+"×";
+  });
+  if(window.matchMedia("(prefers-reduced-motion: reduce)").matches) pause();
+  else play();
+})();
+</script>
+</body>
+</html>
